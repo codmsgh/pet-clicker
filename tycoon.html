@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>타이쿤 클릭커</title>
+<style>
+body{
+ margin:0;
+ font-family:sans-serif;
+ background:linear-gradient(135deg,#1e1e2f,#2b2b45);
+ color:white;
+ text-align:center;
+}
+
+.panel{
+ background:rgba(50,50,80,0.9);
+ margin:10px;
+ padding:12px;
+ border-radius:12px;
+}
+
+button{
+ width:100%;
+ padding:10px;
+ margin:4px 0;
+ border:none;
+ border-radius:10px;
+ background:#4a7dff;
+ color:white;
+ font-size:14px;
+ cursor:pointer;
+}
+
+.resetBtn{
+ background:#ff5c5c;
+}
+
+/* 매장 */
+.store{
+ position:relative;
+ height:220px;
+ border-radius:12px;
+ overflow:hidden;
+ margin-top:10px;
+ border:2px solid #888;
+}
+.store.convenience{
+ background:linear-gradient(to top,#fefefe,#d4d4f0);
+}
+.store.cafe{
+ background:linear-gradient(to top,#f3e5ab,#cfae87);
+}
+.store.pcroom{
+ background:linear-gradient(to top,#a8d0e6,#374785);
+}
+
+/* 바닥 */
+.floor{
+ position:absolute;
+ bottom:0;
+ height:40px;
+ width:100%;
+ background:#ccc4;
+}
+
+/* 카운터/손님/직원 */
+.counter{
+ position:absolute;
+ right:20px;
+ bottom:40px;
+ font-size:40px;
+}
+.worker{
+ position:absolute;
+ bottom:10px;
+ font-size:26px;
+ animation:walk 18s linear infinite;
+}
+@keyframes walk{
+ 0%{left:-40px;}
+ 100%{left:100%;}
+}
+.customer{
+ position:absolute;
+ bottom:50px;
+ font-size:22px;
+ left:-40px;
+ transition:left 2s linear;
+}
+
+/* 게이지 */
+.gaugeBox{
+ height:16px;
+ background:#222;
+ border-radius:10px;
+ overflow:hidden;
+}
+.gauge{
+ height:100%;
+ background:#4aff7d;
+ width:0%;
+}
+
+/* 집 */
+.house{
+ position:relative;
+ height:300px;
+ background:linear-gradient(to top,#c69c6d,#f0e0d6);
+ border-radius:12px;
+ overflow:hidden;
+ border:2px solid #888;
+}
+.houseItem{
+ position:absolute;
+ font-size:30px;
+ cursor:grab;
+}
+.houseItem.dragging{
+ opacity:0.6;
+}
+.decoration{
+ position:absolute;
+ font-size:24px;
+ opacity:0.5;
+}
+</style>
+</head>
+<body>
+
+<h2>💼 타이쿤 클릭커</h2>
+<div class="panel">💰 돈: <span id="money">0</span></div>
+<div id="app"></div>
+
+<script>
+const SAVE="tycoon_save";
+
+function setC(n,v){
+ document.cookie=n+"="+encodeURIComponent(JSON.stringify(v))+";path=/;max-age=31536000";
+}
+function getC(n){
+ let m=document.cookie.match('(^|;)\\s*'+n+'=([^;]+)');
+ return m?JSON.parse(decodeURIComponent(m[2])):null;
+}
+function delC(n){
+ document.cookie=n+"=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;";
+}
+
+let data=getC(SAVE)||{
+ money:0,
+ houseItems:[],
+ shops:[
+  {name:"🏪 편의점", unlock:0, owned:true, click:0, workers:0, furn:[]},
+  {name:"☕ 카페", unlock:700, owned:false, click:0, workers:0, furn:[]},
+  {name:"🖥 PC방", unlock:2400, owned:false, click:0, workers:0, furn:[]}
+ ]
+};
+
+const CLICK_MAX=5;
+const SHOP_FURN=[
+ {emoji:"🪑",cost:30,auto:5},
+ {emoji:"🖥",cost:50,auto:10},
+ {emoji:"🪴",cost:70,auto:20},
+ {emoji:"🪧",cost:100,auto:30},
+ {emoji:"💡",cost:150,auto:50}
+];
+const HOUSE_FURN=[
+ {emoji:"🪵",cost:30},{emoji:"💻",cost:50},{emoji:"📺",cost:80},
+ {emoji:"🛏",cost:120},{emoji:"🧃",cost:140},{emoji:"🌀",cost:150},
+ {emoji:"🚽",cost:170},{emoji:"🛁",cost:200}
+];
+
+function save(){
+ setC(SAVE,data);
+ money.textContent=data.money;
+}
+
+/* 자동수익 */
+setInterval(()=>{
+ data.shops.forEach(s=>{
+  if(!s.owned) return;
+  let auto=s.workers*2;
+  s.furn.forEach(i=>auto+=SHOP_FURN[i].auto);
+  data.money+=auto;
+ });
+ save();
+},1000);
+
+/* ================= 홈 ================= */
+function renderHome(){
+ app.innerHTML="";
+ data.shops.forEach((s,i)=>{
+  let b=document.createElement("button");
+  b.textContent=s.owned?`${s.name} 입장`:`🔒 ${s.name} (${s.unlock})원`;
+  b.onclick=()=>s.owned?enter(i):unlock(i);
+  app.appendChild(b);
+ });
+ let houseBtn=document.createElement("button");
+ houseBtn.textContent="🏠 집(꾸미기)";
+ houseBtn.onclick=renderHouse;
+ app.appendChild(houseBtn);
+ let reset=document.createElement("button");
+ reset.textContent="🔄 다시하기 (전체초기화)";
+ reset.className="resetBtn";
+ reset.onclick=hardReset;
+ app.appendChild(reset);
+}
+
+/* ================= 초기화 ================= */
+function hardReset(){
+ if(!confirm("처음부터 다시 시작할까요?")) return;
+ delC(SAVE);
+ location.reload();
+}
+
+/* ================= 집 ================= */
+function renderHouse(){
+ let html=HOUSE_FURN.map((f,i)=>{
+  if(data.houseItems.includes(i)) return `<button disabled>${f.emoji} 완료</button>`;
+  return `<button onclick="buyHouse(${i})">${f.emoji} ${f.cost}원</button>`;
+ }).join("");
+ app.innerHTML=`
+ <div class="panel">
+ <h3>🏠 집(꾸미기)</h3>
+ ${html}
+ <button onclick="renderHome()">홈</button>
+ <div class="house" id="house"></div>
+ </div>
+ `;
+ drawHouse();
+}
+
+function buyHouse(i){
+ let f=HOUSE_FURN[i];
+ if(data.money<f.cost) return;
+ data.money-=f.cost;
+ data.houseItems.push({id:i,x:20+(i%4)*80,y:30+Math.floor(i/4)*80});
+ renderHouse();
+}
+
+function drawHouse(){
+ let box=document.getElementById("house");
+ box.innerHTML="";
+ // 기존 가구
+ data.houseItems.forEach((item,k)=>{
+  let e=document.createElement("span");
+  e.className="houseItem";
+  e.textContent=HOUSE_FURN[item.id].emoji;
+  e.style.left=item.x+"px";
+  e.style.top=item.y+"px";
+  enableDrag(e,item);
+  box.appendChild(e);
+ });
+
+ // 장식
+ for(let j=0;j<5;j++){
+  let d=document.createElement("span");
+  d.className="decoration";
+  d.textContent="🌿";
+  d.style.left=Math.random()*80+"%";
+  d.style.top=Math.random()*150+"px";
+  box.appendChild(d);
+ }
+ save();
+}
+
+/* 드래그 기능 */
+function enableDrag(el,item){
+ let offsetX=0,offsetY=0;
+ el.onmousedown=function(e){
+  el.classList.add("dragging");
+  offsetX=e.clientX - el.offsetLeft;
+  offsetY=e.clientY - el.offsetTop;
+  document.onmousemove=function(ev){
+   let x=ev.clientX - offsetX;
+   let y=ev.clientY - offsetY;
+   x=Math.max(0,Math.min(x,el.parentElement.offsetWidth-30));
+   y=Math.max(0,Math.min(y,el.parentElement.offsetHeight-30));
+   el.style.left=x+"px";
+   el.style.top=y+"px";
+   item.x=x;
+   item.y=y;
+  }
+  document.onmouseup=function(){
+   el.classList.remove("dragging");
+   document.onmousemove=null;
+   document.onmouseup=null;
+   save();
+  }
+ }
+}
+
+/* ================= 매장 ================= */
+function unlock(i){
+ let s=data.shops[i];
+ if(data.money<s.unlock) return;
+ data.money-=s.unlock;
+ s.owned=true;
+ renderHome();
+}
+
+function enter(i){
+ let s=data.shops[i];
+ let cls=["convenience","cafe","pcroom"][i];
+ let storeBox=`<div class="store ${cls}" id="store"><div class="floor"></div></div>`;
+ let furnHTML=SHOP_FURN.map((f,idx)=>{
+  if(s.furn.includes(idx)) return `<button disabled>${f.emoji} 완료</button>`;
+  return `<button onclick="buyFurn(${i},${idx})">${f.emoji} ${f.cost}</button>`;
+ }).join("");
+ let cost=(s.workers+1)*10;
+ app.innerHTML=`
+ <div class="panel">
+ <h3>${s.name}</h3>
+ <div>클릭 <span id="cnum">${s.click}</span> / ${CLICK_MAX}</div>
+ <div class="gaugeBox"><div id="g" class="gauge"></div></div>
+ <button onclick="clickShop(${i})">홍보하기</button>
+ <button onclick="hire(${i})">직원 고용 (${cost})</button>
+ <h4>꾸미기</h4>
+ ${furnHTML}
+ <button onclick="renderHome()">홈</button>
+ ${storeBox}
+ `;
+ drawWorkers(s);
+ updateGauge(s);
+ save();
+}
+
+function clickShop(i){
+ let s=data.shops[i];
+ s.click++;
+ updateGauge(s);
+ if(s.click>=CLICK_MAX){
+  s.click=0;
+  spawnCustomer(i);
+ }
+}
+
+function updateGauge(s){
+ let g=document.getElementById("g");
+ let c=document.getElementById("cnum");
+ if(g) g.style.width=(s.click/CLICK_MAX*100)+"%";
+ if(c) c.textContent=s.click;
+}
+
+function spawnCustomer(i){
+ let box=document.getElementById("store");
+ let c=document.createElement("span");
+ c.className="customer";
+ c.textContent="🧍";
+ box.appendChild(c);
+ setTimeout(()=>{ c.style.left="70%"; }, 10);
+ setTimeout(()=>{ data.money+=1; c.remove(); save(); }, 2500);
+}
+
+function hire(i){
+ let s=data.shops[i];
+ let cost=(s.workers+1)*10;
+ if(data.money<cost) return;
+ data.money-=cost;
+ s.workers++;
+ enter(i);
+}
+
+function buyFurn(i,idx){
+ let s=data.shops[i];
+ let f=SHOP_FURN[idx];
+ if(data.money<f.cost) return;
+ data.money-=f.cost;
+ s.furn.push(idx);
+ enter(i);
+}
+
+function drawWorkers(s){
+ let box=document.getElementById("store");
+ for(let w=0;w<s.workers;w++){
+  let e=document.createElement("span");
+  e.className="worker";
+  e.textContent="👷";
+  e.style.bottom=(10+w*20)+"px";
+  box.appendChild(e);
+ }
+}
+
+renderHome();
+save();
+</script>
+</body>
+</html>
