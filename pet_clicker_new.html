@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>펫 클리커 FINAL v2</title>
+
+<style>
+body{
+  margin:0;
+  background:linear-gradient(135deg,#2a2a3f,#1b1b2b);
+  font-family:sans-serif;
+  color:white;
+  text-align:center;
+}
+.panel{
+  background:#2f2f4a;
+  margin:10px auto;
+  padding:15px;
+  border-radius:14px;
+  width:90%;
+  max-width:420px;
+}
+button{
+  width:100%;
+  padding:14px;
+  margin:6px 0;
+  border:none;
+  border-radius:10px;
+  font-size:18px;
+  background:#4a7dff;
+  color:white;
+  cursor:pointer;
+}
+#foodBtn{
+  font-size:60px;
+  background:none;
+}
+#pet{
+  font-size:90px;
+  transition:0.2s;
+}
+#resetBtn{background:#ff5c5c;}
+</style>
+</head>
+<body>
+
+<h2>🐶 펫 클리커 FINAL v2</h2>
+
+<div class="panel">
+💰 돈: <span id="money">0</span><br>
+🍎 음식: <span id="food">0</span><br>
+⬆ 파워: <span id="power">1</span><br>
+⚡ 클릭속도: <span id="delayLabel">1.0</span>초<br>
+⭐ 명성: <span id="prestige">0</span><br>
+🗿 동상: <span id="statue">1</span>x<br>
+📈 배수: <span id="multi">1</span>x
+</div>
+
+<div class="panel">
+<button id="foodBtn">🍎</button>
+<button id="upgradeBtn"></button>
+<button id="speedBtn"></button>
+<button id="gachaBtn">🗿 동상 뽑기 (50)</button>
+<button id="feedBtn">🐶 전부 먹이기</button>
+<button id="sellBtn">💰 펫 판매</button>
+<button id="prestigeBtn"></button>
+<button id="resetBtn">🔄 리셋</button>
+</div>
+
+<div class="panel">
+<div id="pet">🐣</div>
+단계: <span id="stage">1</span><br>
+크기: <span id="sizeLabel">1</span>
+</div>
+
+<script>
+// ================= 저장
+const KEY="petGame_FINAL_V2";
+
+function save(){localStorage.setItem(KEY,JSON.stringify(data));}
+function load(){return JSON.parse(localStorage.getItem(KEY));}
+
+// ================= 데이터
+let data=load()||{
+  money:0,
+  food:0,
+  power:1,
+  petXP:0,
+  prestige:0,
+  statue:1,
+  clickDelay:1000,
+  speedLevel:0
+};
+
+// ================= 계산
+function multi(){
+  return (1+data.prestige/100)*data.statue;
+}
+
+function powerCost(){
+  return Math.floor(20*Math.pow(1.5,data.power));
+}
+
+function speedCost(){
+  return 10*(data.speedLevel+1); // ⭐ 10,20,30,40...
+}
+
+function prestigeGain(){
+  return Math.floor(data.money/10);
+}
+
+// ================= 클릭 제한
+let lastClick=0;
+
+function clickFood(){
+  let now=Date.now();
+  if(now-lastClick<data.clickDelay) return;
+
+  lastClick=now;
+
+  let gain=Math.floor(data.power*multi());
+  data.food+=gain;
+
+  pop();
+}
+
+// ================= 파워 업
+function upgradePower(){
+  let c=powerCost();
+  if(data.money>=c){
+    data.money-=c;
+    data.power++;
+  }
+}
+
+// ================= ⭐ 속도 업 (0.2초 감소 + 가격 증가형)
+function upgradeSpeed(){
+  let c=speedCost();
+
+  if(data.money<c) return;
+  if(data.clickDelay<=200) return;
+
+  data.money-=c;
+  data.clickDelay-=200;
+  data.speedLevel++;
+}
+
+// ================= 동상 가챠
+function gacha(){
+  if(data.money<50) return;
+
+  data.money-=50;
+
+  let r=Math.random();
+
+  if(r<0.6) data.statue=1.1;
+  else if(r<0.9) data.statue=1.5;
+  else if(r<0.99) data.statue=2;
+  else data.statue=4;
+}
+
+// ================= 먹이/판매
+function feed(){
+  data.money+=data.food*2;
+  data.petXP+=data.food;
+  data.food=0;
+}
+
+function sell(){
+  data.money+=data.petXP*3;
+  data.petXP=0;
+}
+
+// ================= 명성
+function prestigeUp(){
+  let g=prestigeGain();
+  if(g<=0) return;
+
+  if(!confirm("초기화 후 명성 상승?")) return;
+
+  data.prestige+=g;
+
+  data.money=0;
+  data.food=0;
+  data.power=1;
+  data.petXP=0;
+  data.statue=1;
+  data.clickDelay=1000;
+  data.speedLevel=0;
+}
+
+// ================= 리셋
+function resetAll(){
+  localStorage.removeItem(KEY);
+  location.reload();
+}
+
+// ================= 펫 단계
+function stage(){
+  return Math.min(Math.floor(data.petXP/100),5);
+}
+
+// ================= UI 업데이트
+function update(){
+
+  money.textContent=data.money;
+  food.textContent=data.food;
+  power.textContent=data.power;
+  prestige.textContent=data.prestige;
+  statue.textContent=data.statue;
+
+  multi.textContent=multi().toFixed(2);
+
+  delayLabel.textContent=(data.clickDelay/1000).toFixed(1);
+
+  upgradeBtn.textContent="⬆ 파워 업 ("+powerCost()+")";
+  speedBtn.textContent="⚡ 속도 업 ("+speedCost()+")";
+  prestigeBtn.textContent="⭐ 명성 상승 (+"+prestigeGain()+")";
+
+  let s=stage();
+
+  // 🐣 → 🐤 → 🐶 → 🦁 → 🐲 → 🦅
+  pet.textContent=["🐣","🐤","🐶","🦁","🐲","🦅"][s];
+
+  let size=1+Math.min(data.petXP/100,1)*0.8;
+  pet.style.transform="scale("+size+")";
+  sizeLabel.textContent=size.toFixed(2);
+
+  save();
+}
+
+// ================= 클릭 효과
+function pop(){
+  foodBtn.style.transform="scale(1.2)";
+  setTimeout(()=>foodBtn.style.transform="scale(1)",100);
+}
+
+// ================= 이벤트
+foodBtn.onclick=clickFood;
+upgradeBtn.onclick=upgradePower;
+speedBtn.onclick=upgradeSpeed;
+gachaBtn.onclick=gacha;
+feedBtn.onclick=feed;
+sellBtn.onclick=sell;
+prestigeBtn.onclick=prestigeUp;
+resetBtn.onclick=resetAll;
+
+setInterval(update,100);
+update();
+
+</script>
+
+</body>
+</html>
