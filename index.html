@@ -1,162 +1,209 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>🎰 가위바위보 카지노</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+
+<title>💰 모바일 타이쿤</title>
+
+<!-- ✅ 본인 AdSense 코드로 교체 -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXX"></script>
 
 <style>
+*{box-sizing:border-box}
+
 body{
-  font-family: Arial;
-  text-align:center;
-  background:#111;
+  margin:0;
+  background:#0f0f0f;
   color:white;
-  padding:20px;
+  font-family:sans-serif;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
 }
 
-button{
-  padding:10px 18px;
-  margin:5px;
-  font-size:15px;
-  cursor:pointer;
+/* 상단 정보 */
+.header{
+  padding:15px;
+  background:#1b1b1b;
+  text-align:center;
 }
 
-.betBtn{ background:#333; color:white; }
-.rpsBtn{ background:#ff9800; color:black; font-weight:bold; }
+.money{
+  font-size:28px;
+  font-weight:bold;
+}
 
-#log{
-  margin-top:20px;
-  height:200px;
-  overflow-y:auto;
-  background:#222;
+/* 메인 클릭 영역 */
+.click-area{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.big-btn{
+  width:80%;
+  height:140px;
+  font-size:28px;
+  border-radius:25px;
+  background:#4caf50;
+  border:none;
+  color:white;
+}
+
+/* 하단 메뉴 */
+.footer{
+  background:#1b1b1b;
   padding:10px;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+}
+
+.small-btn{
+  margin:5px;
+  padding:12px;
+  font-size:14px;
+  border:none;
   border-radius:10px;
-  text-align:left;
+}
+
+/* 상점 */
+.shopBox{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  background:#222;
+  padding:15px;
+  display:none;
+  border-top:3px solid orange;
+}
+
+/* 광고 */
+.ads{
+  text-align:center;
+  margin-top:8px;
 }
 </style>
 </head>
+
 <body>
 
-<h1>🎰 가위바위보 카지노</h1>
+<div class="header">
+  <div class="money" id="money">0 원</div>
+  <div id="stats">⚡1 | 배수 x1 | 💎0</div>
+</div>
 
-<h2>
-💰 돈: <span id="money">1000</span> |
-🔥 연승: <span id="streak">0</span> |
-🎯 승률: <span id="chance">50</span>%
-</h2>
+<div class="click-area">
+  <button class="big-btn" onclick="clickMoney()">💵 TAP</button>
+</div>
 
-<h3>💵 베팅 선택</h3>
-<div id="betButtons"></div>
+<div class="footer">
+  <button class="small-btn" onclick="upgrade()">업그레이드</button>
+  <button class="small-btn" onclick="rebirth()">환생</button>
+  <button class="small-btn" onclick="toggleShop()">상점</button>
+</div>
 
-<h3>✊ 선택</h3>
-<button class="rpsBtn" onclick="play('가위')">가위</button>
-<button class="rpsBtn" onclick="play('바위')">바위</button>
-<button class="rpsBtn" onclick="play('보')">보</button>
+<!-- 광고 -->
+<div class="ads">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-XXXX"
+     data-ad-slot="123456"
+     data-ad-format="auto"></ins>
+<script>
+(adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</div>
 
-<div id="log"></div>
+<!-- 상점 -->
+<div id="shopBox" class="shopBox">
+<h3>🛒 상점</h3>
+
+<button class="small-btn" onclick="watchAdDouble()">🎥 광고 → 2배 30초</button>
+<button class="small-btn" onclick="watchAdGem()">🎥 광고 → 보석 10개</button>
+
+<a href="https://buymeacoffee.com/yourid" target="_blank">
+<button class="small-btn">💖 후원/광고제거</button>
+</a>
+
+<button class="small-btn" onclick="toggleShop()">닫기</button>
+</div>
+
 
 <script>
-let money = Number(localStorage.getItem("money")) || 1000;
-let streak = 0;
-let currentBet = 100;
-let choices = ["가위","바위","보"];
-let moneyEl = document.getElementById("money");
-let streakEl = document.getElementById("streak");
-let chanceEl = document.getElementById("chance");
-let log = document.getElementById("log");
-let betArea = document.getElementById("betButtons");
+let money=0, auto=1, multi=1, gems=0;
 
-// 베팅 버튼 생성
-for(let i=100;i<=2000;i+=100){ createBetBtn(i); }
-createBetBtn("올인");
+function save(){
+  localStorage.setItem("save",JSON.stringify({money,auto,multi,gems}));
+}
 
-function createBetBtn(value){
-  let btn = document.createElement("button");
-  btn.className="betBtn";
-  btn.innerText=value;
-  btn.onclick = ()=>{
-    currentBet = (value==="올인")? money : value;
-    addLog("💵 베팅 선택: "+currentBet);
+function load(){
+  let s=localStorage.getItem("save");
+  if(s){
+    let d=JSON.parse(s);
+    money=d.money; auto=d.auto; multi=d.multi; gems=d.gems;
   }
-  betArea.appendChild(btn);
 }
 
-// 승률 계산
-function getWinChance(){
-  if(money>=10000) return 25;
-  if(money>=5000) return 35;
-  if(money>=2000) return 45;
-  return 50;
-}
-
-// 화면 업데이트
 function update(){
-  moneyEl.innerText = money;
-  streakEl.innerText = streak;
-  chanceEl.innerText = getWinChance();
-  localStorage.setItem("money", money);
+  document.getElementById("money").innerText =
+    Math.floor(money)+" 원";
+
+  document.getElementById("stats").innerText =
+    "⚡"+auto+" | 배수 x"+multi+" | 💎"+gems;
 }
 
-// 로그
-function addLog(text){
-  log.innerHTML += text+"<br>";
-  log.scrollTop = log.scrollHeight;
+function clickMoney(){
+  money += multi;
 }
 
-// 게임 실행
-function play(player){
-  if(currentBet>money){ alert("돈 부족!"); return; }
+function upgrade(){
+  let cost=auto*100;
+  if(money>=cost){
+    money-=cost;
+    auto++;
+  }else alert("돈 부족!");
+}
 
-  let computer = choices[Math.floor(Math.random()*3)];
-  let chance = getWinChance();
+function rebirth(){
+  if(money>=1000){
+    money=0;
+    auto=1;
+    multi++;
+  }
+}
 
-  // 🎲 기대감 표시
-  addLog(`${player} 선택! 컴퓨터 선택 중...`);
-  disableButtons(true);
+function toggleShop(){
+  let s=document.getElementById("shopBox");
+  s.style.display=s.style.display=="block"?"none":"block";
+}
 
+function watchAdDouble(){
+  alert("광고 시청 중...");
   setTimeout(()=>{
-    let roll = Math.random()*100;
-    let result;
-
-    if(roll<chance) result="win";
-    else result="lose";
-
-    if(Math.random()<0.1) result="draw"; // 10% 무승부
-
-    let multiplier=2;
-    if(streak>=2) multiplier=3;
-    if(streak>=5) multiplier=5;
-
-    if(result==="win"){
-      let gain = currentBet*multiplier;
-      streak++;
-      if(streak%3===0){ gain+=500; addLog("🎉 3연승 보너스 +500"); }
-      money+=gain;
-      addLog(`✅ ${player} vs ${computer} → 승리! +${gain} (배율 x${multiplier})`);
-    }
-    else if(result==="lose"){
-      money-=currentBet;
-      streak=0;
-      addLog(`❌ ${player} vs ${computer} → 패배... -${currentBet}`);
-    }
-    else{
-      addLog(`➖ ${player} vs ${computer} → 무승부`);
-    }
-
-    if(money<=0){ alert("💀 파산! 다시 시작합니다."); money=1000; streak=0; }
-
-    update();
-    disableButtons(false);
-
-  }, 2000); // 2초 기다림
+    multi*=2;
+    alert("30초 2배!");
+    setTimeout(()=>multi/=2,30000);
+  },8000);
 }
 
-// 버튼 비활성화
-function disableButtons(flag){
-  document.querySelectorAll(".rpsBtn").forEach(b=>b.disabled=flag);
-  document.querySelectorAll(".betBtn").forEach(b=>b.disabled=flag);
+function watchAdGem(){
+  alert("광고 시청 중...");
+  setTimeout(()=>gems+=10,8000);
 }
 
+setInterval(()=>{
+  money+=auto*multi;
+  update();
+  save();
+},1000);
+
+load();
 update();
 </script>
+
 </body>
 </html>
